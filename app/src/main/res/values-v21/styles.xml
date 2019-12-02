@@ -1,0 +1,7 @@
+<resources>
+    <style name="MyDatePickerDialogTheme" parent="android:Theme.Material.Light.Dialog">
+        <item name="android:colorPrimary">@color/dark_red</item>
+        <item name="android:colorPrimaryDark">@color/dark_red</item>
+        <item name="android:colorAccent">@color/dark_red</item>
+    </style>
+</resources>
