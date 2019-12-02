@@ -140,5 +140,6 @@
     <orderEntry type="library" name="Gradle: com.microsoft.azure.android:azure-storage-android:2.0.0@aar" level="project" />
     <orderEntry type="module" module-name="checkupdatebypatch" />
     <orderEntry type="module" module-name="checkupdatebypatch" />
+    <orderEntry type="module" module-name="checkupdatebypatch" />
   </component>
 </module>
