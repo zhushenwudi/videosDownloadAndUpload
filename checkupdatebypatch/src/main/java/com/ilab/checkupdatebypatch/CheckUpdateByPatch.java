@@ -21,8 +21,10 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.File;
+import java.util.concurrent.TimeUnit;
 
 import okhttp3.MediaType;
+import okhttp3.OkHttpClient;
 import okhttp3.RequestBody;
 
 public class CheckUpdateByPatch {
@@ -121,9 +123,14 @@ public class CheckUpdateByPatch {
                 obj.put("versionCode", packageInfo.versionCode + "");
                 obj.put("versionName", packageInfo.versionName);
                 RequestBody body = RequestBody.create(MediaType.parse("application/json;charset=UTF-8"), obj.toString());
+                OkHttpClient okHttpClient = new OkHttpClient.Builder()
+                        .connectTimeout(5, TimeUnit.SECONDS)
+                        .build();
+                OkGo.getInstance().setOkHttpClient(okHttpClient);
                 OkGo.<String>post(md5PostApiUrl)
                         .tag(context)
                         .upRequestBody(body)
+                        .retryCount(3)
                         .execute(new StringCallback() {
                             @Override
                             public void onSuccess(Response<String> response) {
@@ -141,6 +148,12 @@ public class CheckUpdateByPatch {
                                     //下载patch文件
                                     downloadFile(context, patchFileUrl, path, patchFileName);
                                 }
+                            }
+
+                            @Override
+                            public void onError(Response<String> response) {
+                                super.onError(response);
+                                callBack.onNetError();
                             }
                         });
             } catch (JSONException e) {
@@ -198,6 +211,8 @@ public class CheckUpdateByPatch {
         void onCheckFinish();
 
         void onCheckUnknownError();
+
+        void onNetError();
     }
 
     private static class PatchApkTask extends AsyncTask<String, Void, Integer> {

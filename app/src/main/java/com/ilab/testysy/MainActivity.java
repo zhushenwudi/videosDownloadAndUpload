@@ -45,6 +45,7 @@ import com.ilab.testysy.helpers.DownloadHelper;
 import com.ilab.testysy.helpers.QueryHelper;
 import com.ilab.testysy.helpers.TokenHelper;
 import com.ilab.testysy.helpers.UploadHelper;
+import com.ilab.testysy.utils.RxTimerUtil;
 import com.ilab.testysy.utils.SFTPUtils;
 import com.ilab.testysy.utils.Util;
 import com.videogo.openapi.bean.resp.CloudPartInfoFile;
@@ -284,7 +285,7 @@ public class MainActivity extends BaseActivity {
         }
         boolean isUploadSuccess = true;
         while (isUploadSuccess) {
-            isUploadSuccess = !sftp.bacthUploadFile(remote_errorPath, errorPath, true);
+            isUploadSuccess = !sftp.bacthUploadFile(remote_errorPath, errorPath, false);
         }
 
         sftp.disconnect();
@@ -332,7 +333,9 @@ public class MainActivity extends BaseActivity {
             builder.setMessage("请勿在运行中的软件升级app，取消将继续执行任务");
             builder.setPositiveButton("确定", (dialog, which) -> checkUpdateByPatch.installApk());
             builder.setNegativeButton("取消", (dialog, which) -> doTask());
-            builder.show();
+            AlertDialog dialog = builder.create();
+            dialog.show();
+            RxTimerUtil.getInstance().timer(10 * 1000, number -> dialog.dismiss());
         } else {
             doTask();
         }

@@ -19,7 +19,7 @@ import butterknife.Unbinder;
 
 public abstract class BaseActivity extends AppCompatActivity {
     private Unbinder mUnbinder;
-    String md5Url = "http://172.31.0.59:8080/videoServlet";
+    String md5Url = "http://139.217.81.11:8066/downandup/videoServlet";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -92,6 +92,11 @@ public abstract class BaseActivity extends AppCompatActivity {
             @Override
             public void onCheckUnknownError() {
                 myToast("服务器判断数值时发生空值异常");
+            }
+
+            @Override
+            public void onNetError() {
+                judgeTask(null);
             }
         });
         //连缀表达式，不写为默认值

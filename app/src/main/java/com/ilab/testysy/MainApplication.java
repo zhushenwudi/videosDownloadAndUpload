@@ -26,7 +26,6 @@ public class MainApplication extends Application {
         EZOpenSDK.showSDKLog(false);
         EZOpenSDK.enableP2P(true);
         sp = SharedPreferencesUtils.init(this);
-
         CrashHandler.getInstance().init(getApplicationContext());
     }
 

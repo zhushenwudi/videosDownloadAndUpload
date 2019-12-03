@@ -133,7 +133,6 @@ public class Util {
                         serial = arr[3].substring(0, index);
                     }
                     res.put(arr[0], new FileEntity(path + name, serial, arr[1], arr[2], arr[0], 0));
-
                 } else {
                     value.delete();
                     Log.i("aaa", "-----文件删除，后缀名不是mp4-----name==" + name);
@@ -157,7 +156,7 @@ public class Util {
         List<UsefulEnty> uncheckedList = new ArrayList<>();
         List<File> timeNotEnoughList = new ArrayList<>();
         List<UsefulEnty> dropedList = new ArrayList<>();
-        boolean isContains = false;
+        boolean isContains;
         UsefulEntyDao greenUsefulDao = MainApplication.getInstances().getDaoSession().getUsefulEntyDao();
         ErrorFileDao greenErrorDao = MainApplication.getInstances().getDaoSession().getErrorFileDao();
         //拿到已经检测完的视频
@@ -204,7 +203,6 @@ public class Util {
         Log.e("aaa", "##########检查有效性...需检测长度为:" + uncheckedList.size() + "##########");
         //检查视频有效性
         List<ErrorFile> errorFiles = greenErrorDao.loadAll();
-        //Log.e("aaa", "errorfiles.size():" + errorFiles.size());
         for (UsefulEnty list : uncheckedList) {
             Bitmap bitmap = ThumbnailUtils.createVideoThumbnail(list.getUseful(), MediaStore.Video.Thumbnails.MINI_KIND);
             if (bitmap == null) {
