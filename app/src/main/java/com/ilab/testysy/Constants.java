@@ -22,7 +22,7 @@ public  class Constants {
 
     public static final int PROJECT_QUZHOU = 0;
     public static final int PROJECT_ZHEDA = 1;
-    public static final int PARTITION_SIZE = 7000;
+    public static final int PARTITION_SIZE = 5000;
     public static final int DELAYTIME = 1;
 
     //zhushenwudi的constants

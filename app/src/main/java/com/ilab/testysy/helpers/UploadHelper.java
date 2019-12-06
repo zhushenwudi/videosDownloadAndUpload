@@ -101,6 +101,7 @@ public class UploadHelper extends AsyncTask<Void, Void, Void> {
             CloudStorageAccount account = CloudStorageAccount.parse(Constants.storageConnectionString3);
             //创建Blob本地客户端
             CloudBlobClient blobClient = account.createCloudBlobClient();
+
             ServiceProperties props = new ServiceProperties();
             props.setDefaultServiceVersion("2009-09-19");
             blobClient.uploadServiceProperties(props);

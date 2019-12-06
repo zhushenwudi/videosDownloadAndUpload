@@ -56,12 +56,14 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import butterknife.BindView;
 import butterknife.OnClick;
@@ -130,6 +132,7 @@ public class MainActivity extends BaseActivity {
     private DownloadHelper downloadHelper;
     private UploadHelper uploadHelper;
     private UploadEntyDao greenUploadDao;
+    private AtomicBoolean isRunning = new AtomicBoolean(false);
 
     @SuppressLint("SetTextI18n")
     private Handler mHandler = new Handler(msg -> {
@@ -264,19 +267,52 @@ public class MainActivity extends BaseActivity {
             return false;
         });
 
+        //将云列表的field字段提取成列表
+        List<String> fieldList = new ArrayList<>();
+        for (Map.Entry<String, EZCloudRecordFile> a : maps.entrySet()) {
+            EZCloudRecordFile ezCloudRecordFile = a.getValue();
+            String field = ezCloudRecordFile.getFileId();
+            long startTime = ezCloudRecordFile.getStartTime().getTimeInMillis();
+            long endTime = ezCloudRecordFile.getStopTime().getTimeInMillis();
+            int length = (int) Math.ceil((endTime - startTime) / 1000);
+            String sn = ezCloudRecordFile.getDeviceSerial();
+            fieldList.add(field + "_" + startTime + "_" + length + "_" + sn);
+        }
+
+        //过滤掉sd卡中有的和跳过的文件
+        fieldList.removeIf(field -> {
+            for (File file : fileList) {
+                if (file.getName().equals(field)) {
+                    return true;
+                }
+            }
+            for (UploadEnty uploadEnty : uploadEntyList) {
+                if (uploadEnty.getFileName().equals(field)) {
+                    return true;
+                }
+            }
+            return false;
+        });
+
+
+
         StringBuilder stringBuilder = new StringBuilder();
 
         for (UploadEnty uploadEnty : uploadEntyList) {
             stringBuilder.append(uploadEnty.getCause()).append("---").append(uploadEnty.getFileName()).append("\n");
+        }
+
+        for (String str : fieldList) {
+            stringBuilder.append("原因未知").append("---").append(str).append("\n");
         }
         SFTPUtils sftp = new SFTPUtils("40.73.40.129", "gr.zhu", "o1uNF7f5m0", 50022);
         StringBuilder sb = new StringBuilder(sp.getString("customDate"));
         sb.insert(4, "-").insert(7, "-");
         String titleString = (sp.getInt("projectId") == 0 ? "衢州项目" : "浙大项目") + "\n" +
                 "手机id = " + sp.getInt("phoneId") + "\n" +
-                "任务进度 = " + (sp.getInt("currentTaskId") - 1) + "/" + parts.size() + "\n" +
+                "任务进度 = " + sp.getInt("currentTaskId") + "/" + parts.size() + "\n" +
                 "上传成功统计 = " + successEntyList.size() + "/" + maps.size() + "\n" +
-                "下载跳过统计 = " + uploadEntyList.size() + "/" + maps.size() + "\n\n";
+                "下载跳过统计 = " + (uploadEntyList.size() + fieldList.size()) + "/" + maps.size() + "\n\n";
         String errorPath = writeToFile(this, titleString + stringBuilder.toString(), sb.toString());
         String remote_errorPath = "/hub.devops.intelab.cloud/a_zhuguirui/" + sb.toString() + "/";
         sftp.connect();
@@ -332,10 +368,21 @@ public class MainActivity extends BaseActivity {
             builder.setTitle("警告--软件有新版本");
             builder.setMessage("请勿在运行中的软件升级app，取消将继续执行任务");
             builder.setPositiveButton("确定", (dialog, which) -> checkUpdateByPatch.installApk());
-            builder.setNegativeButton("取消", (dialog, which) -> doTask());
+            builder.setNegativeButton("取消", (dialog, which) -> {
+                if (!isRunning.get()) {
+                    isRunning.set(true);
+                    doTask();
+                }
+            });
             AlertDialog dialog = builder.create();
             dialog.show();
-            RxTimerUtil.getInstance().timer(10 * 1000, number -> dialog.dismiss());
+            RxTimerUtil.getInstance().timer(10 * 1000, number -> {
+                if (!isRunning.get()) {
+                    isRunning.set(true);
+                    dialog.dismiss();
+                    doTask();
+                }
+            });
         } else {
             doTask();
         }
@@ -634,18 +681,19 @@ public class MainActivity extends BaseActivity {
         } else {
             //说明还没有完全下载完，开启下载任务
             //去除掉已经下载成功的;
+            Map<String, EZCloudRecordFile> clearMap = new HashMap<>(maps);
             for (String key : existFiles.keySet()) {
-                maps.remove(key);
+                clearMap.remove(key);
             }
             for (UploadEnty uploadEnty : uploadEntyList) {
                 String[] strs = uploadEnty.getFileName().split("_")[0].split("/");
                 String fieldId = strs[strs.length - 1];
-                maps.remove(fieldId);
+                clearMap.remove(fieldId);
             }
-            Log.e("aaa", "需要下载的数量==" + maps.size());
-            downSize = maps.size();
+            Log.e("aaa", "需要下载的数量==" + clearMap.size());
+            downSize = clearMap.size();
             tvDownload.setText("准备下载中...");
-            downloadHelper = new DownloadHelper(this, mHandler, maps);
+            downloadHelper = new DownloadHelper(this, mHandler, clearMap);
             downloadHelper.execute();
         }
     }

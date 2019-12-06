@@ -39,7 +39,6 @@ public class DownloadHelper {
     private Context mContext;
     private int restartCount = 0;  //重启计数
     private ExecutorService threadPool;
-    private boolean isRunning = false;
     private ScheduledExecutorService executor;
 
     public DownloadHelper(Context mContext, Handler mHandler, Map<String, EZCloudRecordFile> map) {
@@ -49,7 +48,6 @@ public class DownloadHelper {
     }
 
     public void execute() {
-        isRunning = true;
         if (eZCMap.size() <= 0) {
             return;
         }
@@ -126,12 +124,7 @@ public class DownloadHelper {
         }
     }
 
-    public boolean getStatus() {
-        return isRunning;
-    }
-
     public void shutdownNow() {
-        isRunning = false;
         Log.e("aaa", "即刻停止视频下载");
         threadPool.shutdownNow();
     }
