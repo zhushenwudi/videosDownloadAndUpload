@@ -94,17 +94,16 @@ public class QueryHelper {
 
                                 @Override
                                 public void queryLocalSucess(List<CloudPartInfoFileEx> cloudPartInfoFileEx, int position, List<CloudPartInfoFile> cloudPartInfoFile) {
-                                    int a = 100;
+
                                 }
 
                                 @Override
                                 public void queryLocalNoData() {
-                                    int a = 100;
+
                                 }
 
                                 @Override
                                 public void queryException() {
-                                    int a = 100;
                                     addCount++;
                                 }
 
@@ -148,20 +147,20 @@ public class QueryHelper {
             Log.i("csdn", "-------查询摄像头完毕，共计====" + devices.size());
             if (devices.size() > 0) {
                 List<EZDeviceInfo> list = new ArrayList<>();
-                int a = (int) Math.floor(devices.size() / 3);
+                int a = (int) Math.floor(devices.size() / 10);
 
                 if (phoneId == 0) {
-                    for (int i = 0; i < a; i++) {
+                    for (int i = 0; i < 4 * a; i++) {
                         list.add(devices.get(i));
                     }
                     arr = list;
                 } else if (phoneId == 1) {
-                    for (int i = a; i < (2 * a); i++) {
+                    for (int i = (4 * a); i < (7 * a); i++) {
                         list.add(devices.get(i));
                     }
                     arr = list;
                 } else if (phoneId == 2) {
-                    for (int i = (2 * a); i < devices.size(); i++) {
+                    for (int i = (7 * a); i < devices.size(); i++) {
                         list.add(devices.get(i));
                     }
                     arr = list;

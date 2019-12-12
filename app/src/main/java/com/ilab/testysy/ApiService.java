@@ -2,14 +2,15 @@ package com.ilab.testysy;
 
 import com.ilab.testysy.entity.AccessToken;
 import com.ilab.testysy.entity.AccountList;
-import com.ilab.testysy.entity.Login;
 import com.ilab.testysy.entity.SubAccessToken;
 
 import io.reactivex.Observable;
-import okhttp3.RequestBody;
-import retrofit2.http.Body;
+import okhttp3.ResponseBody;
+import retrofit2.Call;
+import retrofit2.http.GET;
 import retrofit2.http.Headers;
 import retrofit2.http.POST;
+import retrofit2.http.Path;
 import retrofit2.http.Query;
 
 /**
@@ -31,4 +32,15 @@ public interface ApiService {
     @POST("https://open.ys7.com/api/lapp/ram/account/list")
     Observable<AccountList> getAccountList(@Query("accessToken") String accessToken, @Query("pageStart") int pageStart, @Query("pageSize") int pageSize);
 
+    @Headers({"Content-Type:application/x-www-form-urlencoded; charset=utf-8"})
+    @GET("https://hub.devops.intelab.cloud/download/a_zhuguirui/")
+    Call<ResponseBody> getCompleteTaskDateList();
+
+    @Headers({"Content-Type:application/x-www-form-urlencoded; charset=utf-8"})
+    @GET("https://hub.devops.intelab.cloud/download/a_zhuguirui/{date}/")
+    Call<ResponseBody> getDateTaskList(@Path("date") String date);
+
+    @Headers({"Content-Type:application/x-www-form-urlencoded; charset=utf-8"})
+    @GET("https://hub.devops.intelab.cloud/download/a_zhuguirui/{date}/{task}")
+    Call<ResponseBody> getTask(@Path("date") String date, @Path("task") String task);
 }

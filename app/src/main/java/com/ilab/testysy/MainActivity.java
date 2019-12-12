@@ -9,8 +9,12 @@ import android.content.IntentFilter;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
+import android.util.DisplayMetrics;
 import android.util.Log;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.View;
+import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.DatePicker;
 import android.widget.LinearLayout;
@@ -45,12 +49,14 @@ import com.ilab.testysy.helpers.DownloadHelper;
 import com.ilab.testysy.helpers.QueryHelper;
 import com.ilab.testysy.helpers.TokenHelper;
 import com.ilab.testysy.helpers.UploadHelper;
+import com.ilab.testysy.network.NetWork;
 import com.ilab.testysy.utils.RxTimerUtil;
 import com.ilab.testysy.utils.SFTPUtils;
 import com.ilab.testysy.utils.Util;
 import com.videogo.openapi.bean.resp.CloudPartInfoFile;
 
 import java.io.File;
+import java.lang.reflect.Field;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -64,10 +70,17 @@ import java.util.Objects;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import butterknife.BindView;
 import butterknife.OnClick;
+import okhttp3.ResponseBody;
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
 
+import static com.ilab.testysy.Constants.DISSMISS_DIALOG;
 import static com.ilab.testysy.Constants.DOWN_FAILED;
 import static com.ilab.testysy.Constants.DOWN_SUCCESS;
 import static com.ilab.testysy.Constants.LOGIN_SUCCESS;
@@ -80,7 +93,7 @@ import static com.ilab.testysy.Constants.UPLOADPIC_FINISH;
 import static com.ilab.testysy.Constants.UPLOADVideo_FINISH;
 import static com.ilab.testysy.Constants.UPLOAD_SERVER_SUCCESS;
 import static com.ilab.testysy.Constants.path;
-import static com.ilab.testysy.utils.Util.getDirAllFile;
+import static com.ilab.testysy.utils.Util.getAppVersionName;
 import static com.ilab.testysy.utils.Util.restartApp;
 import static com.ilab.testysy.utils.Util.writeToFile;
 
@@ -133,6 +146,7 @@ public class MainActivity extends BaseActivity {
     private UploadHelper uploadHelper;
     private UploadEntyDao greenUploadDao;
     private AtomicBoolean isRunning = new AtomicBoolean(false);
+    private AlertDialog globalAlertDialog;
 
     @SuppressLint("SetTextI18n")
     private Handler mHandler = new Handler(msg -> {
@@ -156,6 +170,12 @@ public class MainActivity extends BaseActivity {
             case QUERY_END:
                 int count = msg.arg1;
                 tvDownload.setText("查询完毕，共计" + count + "视频片段");
+                int projectId = sp.getInt("projectId");
+                if (projectId == 0) {
+                    sp.putInt("quzhoucloudsize", count);
+                } else if (projectId == 1) {
+                    sp.putInt("zhedacloudsize", count);
+                }
                 new Timer().schedule(new TimerTask() {
                     @Override
                     public void run() {
@@ -183,6 +203,22 @@ public class MainActivity extends BaseActivity {
             case UPLOAD_SERVER_SUCCESS:
                 clean_greenDao();
                 new DeleteFileThread(this, true).start();
+                break;
+            case DISSMISS_DIALOG:
+                Log.e("aaa", "aaa");
+                if (globalAlertDialog != null) {
+                    Log.e("aaa", "bbb");
+                    try {
+                        Field field = Objects.requireNonNull(Objects.requireNonNull(globalAlertDialog.getClass().getSuperclass()).getSuperclass()).getDeclaredField("mShowing");
+                        field.setAccessible(true);
+                        field.set(globalAlertDialog, true);
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                    globalAlertDialog.dismiss();
+                }
+                break;
+            default:
                 break;
         }
         return false;
@@ -254,67 +290,22 @@ public class MainActivity extends BaseActivity {
 
     private void uploadInfoToServer() {
         List<UploadEnty> uploadEntyList = greenUploadDao.loadAll();
-        List<SuccessEnty> successEntyList = greenEntyDao.loadAll();
-        List<File> fileList = getDirAllFile(new File(path));
-
-        //获得真实的没有上传的错误文件
-        uploadEntyList.removeIf(uploadEnty -> {
-            for (File file : fileList) {
-                if (uploadEnty.getFileName().equals(file.getName())) {
-                    return true;
-                }
-            }
-            return false;
-        });
-
-        //将云列表的field字段提取成列表
-        List<String> fieldList = new ArrayList<>();
-        for (Map.Entry<String, EZCloudRecordFile> a : maps.entrySet()) {
-            EZCloudRecordFile ezCloudRecordFile = a.getValue();
-            String field = ezCloudRecordFile.getFileId();
-            long startTime = ezCloudRecordFile.getStartTime().getTimeInMillis();
-            long endTime = ezCloudRecordFile.getStopTime().getTimeInMillis();
-            int length = (int) Math.ceil((endTime - startTime) / 1000);
-            String sn = ezCloudRecordFile.getDeviceSerial();
-            fieldList.add(field + "_" + startTime + "_" + length + "_" + sn);
-        }
-
-        //过滤掉sd卡中有的和跳过的文件
-        fieldList.removeIf(field -> {
-            for (File file : fileList) {
-                if (file.getName().equals(field)) {
-                    return true;
-                }
-            }
-            for (UploadEnty uploadEnty : uploadEntyList) {
-                if (uploadEnty.getFileName().equals(field)) {
-                    return true;
-                }
-            }
-            return false;
-        });
-
-
 
         StringBuilder stringBuilder = new StringBuilder();
-
         for (UploadEnty uploadEnty : uploadEntyList) {
             stringBuilder.append(uploadEnty.getCause()).append("---").append(uploadEnty.getFileName()).append("\n");
         }
-
-        for (String str : fieldList) {
-            stringBuilder.append("原因未知").append("---").append(str).append("\n");
-        }
-        SFTPUtils sftp = new SFTPUtils("40.73.40.129", "gr.zhu", "o1uNF7f5m0", 50022);
         StringBuilder sb = new StringBuilder(sp.getString("customDate"));
         sb.insert(4, "-").insert(7, "-");
         String titleString = (sp.getInt("projectId") == 0 ? "衢州项目" : "浙大项目") + "\n" +
                 "手机id = " + sp.getInt("phoneId") + "\n" +
                 "任务进度 = " + sp.getInt("currentTaskId") + "/" + parts.size() + "\n" +
-                "上传成功统计 = " + successEntyList.size() + "/" + maps.size() + "\n" +
-                "下载跳过统计 = " + (uploadEntyList.size() + fieldList.size()) + "/" + maps.size() + "\n\n";
+                "上传成功统计 = " + (maps.size() - uploadEntyList.size()) + "/" + maps.size() + "\n" +
+                "下载跳过统计 = " + uploadEntyList.size() + "/" + maps.size() + "\n\n";
         String errorPath = writeToFile(this, titleString + stringBuilder.toString(), sb.toString());
         String remote_errorPath = "/hub.devops.intelab.cloud/a_zhuguirui/" + sb.toString() + "/";
+
+        SFTPUtils sftp = new SFTPUtils("40.73.40.129", "gr.zhu", "o1uNF7f5m0", 50022);
         sftp.connect();
         if (!sftp.isDirExist(remote_errorPath)) {
             sftp.myMkdirs(remote_errorPath);
@@ -389,6 +380,7 @@ public class MainActivity extends BaseActivity {
 
     }
 
+    @SuppressLint("SetTextI18n")
     private void doTask() {
         Log.e("aaa", "---------------------judgeTask一次-----------------------");
         //浙大 1,衢州 0
@@ -466,7 +458,9 @@ public class MainActivity extends BaseActivity {
                         return;
                     }
                     //浙大的也执行完了
-                    tvTask.setText(day + "所有任务已完成,等待第二天任务....");
+                    int quzhouSize = sp.getInt("quzhoucloudsize");
+                    int zhedaSize = sp.getInt("zhedacloudsize");
+                    tvTask.setText(day + "所有任务(" + "衢州" + quzhouSize + "," + "浙大" + zhedaSize + "\n已经完成,等待第二天任务...");
                     new DeleteFileThread(this, false).start();
                 }
             } else {
@@ -733,5 +727,175 @@ public class MainActivity extends BaseActivity {
         greenPicDao.deleteAll();
         greenErrorDao.deleteAll();
         greenUploadDao.deleteAll();
+    }
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(R.menu.menu, menu);
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        int id = item.getItemId();
+        switch (id) {
+            case R.id.recovery:
+                String[] gender = {"删除视频(完全重置，类似重装)", "不删除视频(继续执行part1任务)"};
+                AlertDialog.Builder builder = new AlertDialog.Builder(this);
+                builder.setTitle("请选择要清空的类型");
+                builder.setItems(gender, (dialog, which) -> {
+                    sp.clear();
+                    clean_greenDao();
+                    restartApp(this, 2000);
+                    if (which == 0) {
+                        new DeleteFileThread(this, true).start();
+                    }
+                });
+                builder.show();
+                break;
+            case R.id.about:
+                AlertDialog.Builder builder1 = new AlertDialog.Builder(this);
+                builder1.setMessage("APP版本号:" + getAppVersionName(this));
+                builder1.show();
+                break;
+            case R.id.task:
+                Call<ResponseBody> myCall = NetWork.getRequest().getCompleteTaskDateList();
+                myCall.enqueue(new Callback<ResponseBody>() {
+                    @Override
+                    public void onResponse(Call<ResponseBody> call, Response<ResponseBody> response) {
+                        try {
+                            String reg = "<a href=\"20(.*?)/</a>";
+                            Pattern pattern = Pattern.compile(reg);
+                            Matcher matcher = pattern.matcher(Objects.requireNonNull(response.body()).string());
+                            List<String> dateList = new ArrayList<>();
+                            while (matcher.find()) {
+                                dateList.add(Objects.requireNonNull(matcher.group(1)).split("/\">")[1]);
+                            }
+                            showDatePickerDialog(dateList);
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Call<ResponseBody> call, Throwable t) {
+                        Toast.makeText(MainActivity.this, "网络异常，请重试", Toast.LENGTH_LONG).show();
+                    }
+                });
+                break;
+            default:
+                break;
+        }
+        return true;
+    }
+
+    private void showDatePickerDialog(List<String> dateList) {
+        Calendar d = Calendar.getInstance(Locale.CHINA);
+        Date myDate = new Date();
+        d.setTime(myDate);
+        int year = d.get(Calendar.YEAR);
+        int month = d.get(Calendar.MONTH);
+        int day = d.get(Calendar.DAY_OF_MONTH);
+        //初始化默认日期year, month, day
+        DatePickerDialog datePickerDialog = new DatePickerDialog(this, R.style.MyDatePickerDialogTheme, (view1, year1, monthOfYear, dayOfMonth) -> {
+            String str_m = (monthOfYear + 1) > 9 ? (monthOfYear + 1) + "" : "0" + (monthOfYear + 1);
+            String str_d = dayOfMonth > 9 ? dayOfMonth + "" : "0" + dayOfMonth;
+            String date = year1 + "-" + str_m + "-" + str_d;
+            if (dateList.contains(date)) {
+                Call<ResponseBody> myCall = NetWork.getRequest().getDateTaskList(date);
+                myCall.enqueue(new Callback<ResponseBody>() {
+                    @Override
+                    public void onResponse(Call<ResponseBody> call, Response<ResponseBody> response) {
+                        try {
+                            String reg = "<a href=\"(.*?)</a>";
+                            Pattern pattern = Pattern.compile(reg);
+                            Matcher matcher = pattern.matcher(Objects.requireNonNull(response.body()).string());
+                            List<String> taskList = new ArrayList<>();
+                            while (matcher.find()) {
+                                if (Objects.requireNonNull(matcher.group(1)).contains("txt")) {
+                                    taskList.add(Objects.requireNonNull(matcher.group(1)).split(">")[1].replace(".txt", ""));
+                                }
+                            }
+                            String[] task = taskList.toArray(new String[0]);
+                            AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+                            builder.setTitle("请选择要查看的时间");
+                            builder.setItems(task, (dialog, which) -> {
+                                try {
+                                    Field field = Objects.requireNonNull(Objects.requireNonNull(dialog.getClass().getSuperclass()).getSuperclass()).getDeclaredField("mShowing");
+                                    field.setAccessible(true);
+                                    field.set(dialog, false);
+                                } catch (Exception e) {
+                                    e.printStackTrace();
+                                }
+                                showTask(date, task[which]);
+                            });
+                            builder.setNegativeButton("关闭", (dialog, which) -> {
+                                try {
+                                    Field field = Objects.requireNonNull(Objects.requireNonNull(dialog.getClass().getSuperclass()).getSuperclass()).getDeclaredField("mShowing");
+                                    field.setAccessible(true);
+                                    field.set(dialog, true);
+                                } catch (Exception e) {
+                                    e.printStackTrace();
+                                }
+                            });
+                            globalAlertDialog = builder.create();
+                            globalAlertDialog.setCanceledOnTouchOutside(false);
+                            globalAlertDialog.show();
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Call<ResponseBody> call, Throwable t) {
+                        Toast.makeText(MainActivity.this, "网络异常，请重试", Toast.LENGTH_LONG).show();
+                    }
+                });
+            } else {
+                Toast.makeText(this, "没有找到" + date + "的任务", Toast.LENGTH_LONG).show();
+            }
+        }, year, month, day);
+        DatePicker dp = datePickerDialog.getDatePicker();
+        dp.setMaxDate(new Date().getTime() - 1000 * 60 * 60 * 24);
+        datePickerDialog.show();
+    }
+
+    private void showTask(String date, String task) {
+        Call<ResponseBody> myCall = NetWork.getRequest().getTask(date, task + ".txt");
+        myCall.enqueue(new Callback<ResponseBody>() {
+            @Override
+            public void onResponse(Call<ResponseBody> call, Response<ResponseBody> response) {
+                try {
+                    String body = Objects.requireNonNull(response.body()).string();
+                    AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+                    String[] bodyspl = body.split("\n\n");
+                    StringBuilder sb = new StringBuilder();
+                    sb.append(bodyspl[0]);
+                    if (bodyspl.length == 2) {
+                        sb.append("\n\n").append(bodyspl[1].replace(" ", "")
+                                .replace("/storage/emulated/0/aaa/CloudFile/", "")
+                                .replace("\n", "\n\n"));
+                    }
+                    builder.setMessage(sb.toString());
+                    AlertDialog alertDialog = builder.create();
+                    alertDialog.show();
+                    WindowManager.LayoutParams lp = Objects.requireNonNull(alertDialog.getWindow()).getAttributes();
+                    DisplayMetrics metric = new DisplayMetrics();
+                    getWindowManager().getDefaultDisplay().getRealMetrics(metric);
+                    lp.height = Double.valueOf(metric.heightPixels * 0.8).intValue(); // 高度（PX）
+                    alertDialog.getWindow().setAttributes(lp);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    Message message = Message.obtain();
+                    message.what = DISSMISS_DIALOG;
+                    mHandler.sendMessage(message);
+                }
+            }
+
+            @Override
+            public void onFailure(Call<ResponseBody> call, Throwable t) {
+                Toast.makeText(MainActivity.this, "网络异常，请重试", Toast.LENGTH_LONG).show();
+            }
+        });
     }
 }

@@ -5,12 +5,15 @@ import android.app.AlarmManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.media.ThumbnailUtils;
 import android.os.Environment;
 import android.provider.MediaStore;
 import android.util.Log;
 
+import com.heima.easysp.SharedPreferencesUtils;
 import com.ilab.testysy.Constants;
 import com.ilab.testysy.MainActivity;
 import com.ilab.testysy.MainApplication;
@@ -380,7 +383,9 @@ public class Util {
         String rtnPath = "";
         try {
             String dirName = Environment.getExternalStorageDirectory().getCanonicalPath() + File.separator + context.getResources().getString(R.string.app_name) + File.separator + date + File.separator;
-            String fileName = dirName + now + ".txt";
+            int phoneId = SharedPreferencesUtils.init(context).getInt("phoneId");
+            String projectId = SharedPreferencesUtils.init(context).getInt("projectId") == 0 ? "衢州" : "浙大";
+            String fileName = dirName + projectId + "手机" + phoneId + "_完成时间" + now + ".txt";
 
             File file = new File(dirName);
             if (!file.exists()) {
@@ -395,5 +400,36 @@ public class Util {
             e.printStackTrace();
         }
         return rtnPath;
+    }
+
+    /**
+     * 返回当前程序版本号
+     */
+    public static String getAppVersionCode(Context context) {
+        int versioncode = 0;
+        try {
+            PackageManager pm = context.getPackageManager();
+            PackageInfo pi = pm.getPackageInfo(context.getPackageName(), 0);
+            // versionName = pi.versionName;
+            versioncode = pi.versionCode;
+        } catch (Exception e) {
+            Log.e("VersionInfo", "Exception", e);
+        }
+        return versioncode + "";
+    }
+
+    /**
+     * 返回当前程序版本名
+     */
+    public static String getAppVersionName(Context context) {
+        String versionName = null;
+        try {
+            PackageManager pm = context.getPackageManager();
+            PackageInfo pi = pm.getPackageInfo(context.getPackageName(), 0);
+            versionName = pi.versionName;
+        } catch (Exception e) {
+            Log.e("VersionInfo", "Exception", e);
+        }
+        return versionName;
     }
 }

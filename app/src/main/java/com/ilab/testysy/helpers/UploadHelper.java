@@ -20,6 +20,8 @@ import com.ilab.testysy.database.SuccessEnty;
 import com.ilab.testysy.database.SuccessEntyDao;
 import com.ilab.testysy.database.SuccessPicEnty;
 import com.ilab.testysy.database.SuccessPicEntyDao;
+import com.ilab.testysy.database.UploadEnty;
+import com.ilab.testysy.database.UploadEntyDao;
 import com.ilab.testysy.entity.FileEntity;
 import com.ilab.testysy.utils.NetSpeed;
 import com.ilab.testysy.utils.ThreadPoolUtils;
@@ -65,6 +67,7 @@ public class UploadHelper extends AsyncTask<Void, Void, Void> {
     private Handler mHandler;
     private int taskId;
     private SuccessEntyDao greenEntyDao;
+    private UploadEntyDao uploadEntyDao;
     private SuccessPicEntyDao greenPicDao;
     private SharedPreferencesUtils sp = MainApplication.getInstances().getSp();
     private ThreadPoolUtils myThreadPool;
@@ -198,6 +201,7 @@ public class UploadHelper extends AsyncTask<Void, Void, Void> {
                 successCount.getAndSet(0);
                 Log.e("aaa", "准备传输的文件数目:" + videoEntityList.size());
                 greenEntyDao = MainApplication.getInstances().getDaoSession().getSuccessEntyDao();
+                uploadEntyDao = MainApplication.getInstances().getDaoSession().getUploadEntyDao();
                 while (videoEntityList.size() > 0) {
                     if (myThreadPool == null)
                         myThreadPool = new ThreadPoolUtils(ThreadPoolUtils.FixedThread, Constants.CPU_COUNT * 2 + 1);
@@ -213,19 +217,20 @@ public class UploadHelper extends AsyncTask<Void, Void, Void> {
                             Log.e("aaa", "已成功上传视频==" + successCount + "个");
                         });
                     }
-                    //放入任务结束后关闭线程池（意思是所有任务结束，线程池会自然关闭，非shutdownNow()强制即刻生效方法）
-                    myThreadPool.shutDown();
-                    //循环判断线程池中任务是否全部执行完毕
-                    while (!myThreadPool.isTerminated()) {
-                        //避免高频率轮询，采用睡眠1s方式控制while频率
-                        try {
+                    try {
+                        //放入任务结束后关闭线程池（意思是所有任务结束，线程池会自然关闭，非shutdownNow()强制即刻生效方法）
+                        myThreadPool.shutDown();
+                        //循环判断线程池中任务是否全部执行完毕
+                        while (!myThreadPool.isTerminated()) {
+                            //避免高频率轮询，采用睡眠1s方式控制while频率
                             Thread.sleep(1000);
-                        } catch (InterruptedException e) {
-                            e.printStackTrace();
                         }
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    } finally {
+                        executor.shutdownNow();
+                        myThreadPool = null;
                     }
-                    executor.shutdownNow();
-                    myThreadPool = null;
                 }
             }
             //图片类型
@@ -255,19 +260,20 @@ public class UploadHelper extends AsyncTask<Void, Void, Void> {
                             }
                         });
                     }
-                    //放入任务结束后关闭线程池（意思是所有任务结束，线程池会自然关闭，非shutdownNow()强制即刻生效方法）
-                    myThreadPool.shutDown();
-                    //循环判断线程池中任务是否全部执行完毕
-                    while (!myThreadPool.isTerminated()) {
-                        //避免高频率轮询，采用睡眠1s方式控制while频率
-                        try {
+                    try {
+                        //放入任务结束后关闭线程池（意思是所有任务结束，线程池会自然关闭，非shutdownNow()强制即刻生效方法）
+                        myThreadPool.shutDown();
+                        //循环判断线程池中任务是否全部执行完毕
+                        while (!myThreadPool.isTerminated()) {
+                            //避免高频率轮询，采用睡眠1s方式控制while频率
                             Thread.sleep(1000);
-                        } catch (InterruptedException e) {
-                            e.printStackTrace();
                         }
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    } finally {
+                        executor.shutdownNow();
+                        myThreadPool = null;
                     }
-                    executor.shutdownNow();
-                    myThreadPool = null;
                 }
             }
         } else {
@@ -366,7 +372,7 @@ public class UploadHelper extends AsyncTask<Void, Void, Void> {
             greenEntyDao.insert(enty);
         }
         //抛出异常
-        catch (StorageException | URISyntaxException | IOException e) {
+        catch (StorageException | URISyntaxException e) {
             e.printStackTrace();
             errorCount.incrementAndGet();
             int count = fileEntity.getRetry();
@@ -374,10 +380,13 @@ public class UploadHelper extends AsyncTask<Void, Void, Void> {
                 fileEntity.setRetry(++count);
                 videoEntityList.add(fileEntity);
             } else {
-                SuccessEnty enty = new SuccessEnty();
-                enty.setFileId(fileEntity.getFileId());
-                greenEntyDao.insert(enty);
+                UploadEnty uploadEnty = new UploadEnty();
+                uploadEnty.setFileName(fileEntity.getFileId() + "_" + fileEntity.getTime() + "_" + fileEntity.getLength() + "_" + fileEntity.getSn());
+                uploadEnty.setCause("上传3次不成功的");
+                uploadEntyDao.insert(uploadEnty);
             }
+        } catch (IOException e) {
+            //
         } finally {
             //关闭视频流
             if (fileInputStream != null) {

@@ -22,13 +22,15 @@ public  class Constants {
 
     public static final int PROJECT_QUZHOU = 0;
     public static final int PROJECT_ZHEDA = 1;
-    public static final int PARTITION_SIZE = 5000;
+    public static final int PARTITION_SIZE = 10000;
     public static final int DELAYTIME = 1;
 
     //zhushenwudi的constants
     public static final int SHOW_STRING = 333;
     public static final int UPLOADPIC_FINISH = 336;
     public static final int UPLOADVideo_FINISH = 337;
+
+    public static final int DISSMISS_DIALOG = 338;
     //CPU个数
     public static final int CPU_COUNT = Runtime.getRuntime().availableProcessors();
 
