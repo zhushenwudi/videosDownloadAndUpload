@@ -26,6 +26,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static com.ilab.testysy.utils.Util.isNetworkConnected;
 import static com.ilab.testysy.utils.Util.restartApp;
 
 public class DownloadHelper {
@@ -206,9 +207,11 @@ public class DownloadHelper {
                             mHandler.sendMessage(message);
                             testReboot();
                         } else {
-                            cloudFile.setRetry(++count);
-                            queue.put(cloudFile);
-                            Log.e("aaa", "下载失败===重试第" + count + "次:" + cloudFile.getFileId() + ",sn==" + cloudFile.getDeviceSerial() + "fileName==" + strRecordFile);
+                            if (isNetworkConnected(mContext)) {
+                                cloudFile.setRetry(++count);
+                                queue.put(cloudFile);
+                                Log.e("aaa", "下载失败===重试第" + count + "次:" + cloudFile.getFileId() + ",sn==" + cloudFile.getDeviceSerial() + "fileName==" + strRecordFile);
+                            }
                         }
                     } catch (Exception e) {
                         e.printStackTrace();
@@ -233,7 +236,7 @@ public class DownloadHelper {
     private void testReboot() {
         if (downloadSuccessCount.get() + downloadFailCount.get() >= eZCMap.size()) {
             if (!executor.isTerminated()) executor.shutdownNow();
-            restartApp(mContext, 7000);
+            restartApp(mContext, 5000);
         }
     }
 }

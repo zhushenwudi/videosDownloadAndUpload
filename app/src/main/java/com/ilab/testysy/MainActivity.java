@@ -275,13 +275,15 @@ public class MainActivity extends BaseActivity {
             sp.putInt("currentTaskId", next);
             ArrayList<File> files = Util.orderByDate(path);
             //记录下载并上传完成后的最后一条视频的修改时间，方便下个任务如果文件数目超过后删除的判定
-            @SuppressLint("SimpleDateFormat")
-            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-            try {
-                Date start = sdf.parse(sdf.format(new Date(files.get(0).lastModified() + 30 * 1000)));
-                sp.putLong("lastMovieTime", Objects.requireNonNull(start).getTime());
-            } catch (ParseException e) {
-                e.printStackTrace();
+            if (files.size() > 0) {
+                @SuppressLint("SimpleDateFormat")
+                SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+                try {
+                    Date start = sdf.parse(sdf.format(new Date(files.get(0).lastModified() + 30 * 1000)));
+                    sp.putLong("lastMovieTime", Objects.requireNonNull(start).getTime());
+                } catch (ParseException e) {
+                    e.printStackTrace();
+                }
             }
             Log.e("aaa", "---------------------上传完毕，准备删除文件，next-----------------------" + next);
             uploadInfoToServer();
@@ -358,7 +360,10 @@ public class MainActivity extends BaseActivity {
             AlertDialog.Builder builder = new AlertDialog.Builder(this);
             builder.setTitle("警告--软件有新版本");
             builder.setMessage("请勿在运行中的软件升级app，取消将继续执行任务");
-            builder.setPositiveButton("确定", (dialog, which) -> checkUpdateByPatch.installApk());
+            builder.setPositiveButton("确定", (dialog, which) -> {
+                RxTimerUtil.getInstance().cancel();
+                checkUpdateByPatch.downloadFile();
+            });
             builder.setNegativeButton("取消", (dialog, which) -> {
                 if (!isRunning.get()) {
                     isRunning.set(true);

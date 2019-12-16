@@ -52,6 +52,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static com.ilab.testysy.utils.Util.isNetworkConnected;
 import static com.ilab.testysy.utils.Util.restartApp;
 
 @SuppressLint("StaticFieldLeak")
@@ -321,13 +322,15 @@ public class UploadHelper extends AsyncTask<Void, Void, Void> {
         //抛出异常
         catch (StorageException | IOException | URISyntaxException e) {
             e.printStackTrace();
-            int failcount = fileEntity.getRetry();
-            if (failcount <= 2) {
-                imageEntityList.add(fileEntity);
-                fileEntity.setRetry(++failcount);
-            } else
-                errorCount.incrementAndGet();
-
+            if (isNetworkConnected(context)) {
+                int failcount = fileEntity.getRetry();
+                if (failcount <= 2) {
+                    imageEntityList.add(fileEntity);
+                    fileEntity.setRetry(++failcount);
+                } else {
+                    errorCount.incrementAndGet();
+                }
+            }
         }
     }
 

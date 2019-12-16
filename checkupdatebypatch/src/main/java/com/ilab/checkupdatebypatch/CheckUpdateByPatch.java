@@ -3,9 +3,13 @@ package com.ilab.checkupdatebypatch;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.pm.PackageInfo;
+import android.graphics.drawable.Drawable;
 import android.os.AsyncTask;
 import android.os.Environment;
 import android.text.TextUtils;
+import android.view.View;
+import android.widget.ImageView;
+import android.widget.ScrollView;
 
 import com.google.gson.Gson;
 import com.ilab.checkupdatebypatch.bean.Apk;
@@ -15,7 +19,9 @@ import com.ilab.checkupdatebypatch.utils.SignUtils;
 import com.lzy.okgo.OkGo;
 import com.lzy.okgo.callback.FileCallback;
 import com.lzy.okgo.callback.StringCallback;
+import com.lzy.okgo.model.Progress;
 import com.lzy.okgo.model.Response;
+import com.lzy.okgo.request.base.Request;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -45,6 +51,12 @@ public class CheckUpdateByPatch {
     private static String latestVersionFlag = "new";
     private static String unknownError = "error";
     private static CallBack callBack;
+    private static String FILEURL;
+    //true: Patch更新  false: APK更新
+    private static boolean flag = false;
+    private ImageView imageView;
+    private ScrollView scrollView;
+    private Drawable mWaveDrawable;
 
     static {
         System.loadLibrary("ApkPatchLibrary");
@@ -56,11 +68,16 @@ public class CheckUpdateByPatch {
      * @param context       上下文
      * @param packageName   程序包名
      * @param md5PostApiUrl 获取新旧版本MD5值的接口URL
+     * @param scrollView
+     * @param mWaveDrawable
      */
-    public CheckUpdateByPatch(Context context, String packageName, String md5PostApiUrl) {
+    public CheckUpdateByPatch(Context context, String packageName, String md5PostApiUrl, ImageView imageView, ScrollView scrollView, Drawable mWaveDrawable) {
         CheckUpdateByPatch.context = context.getApplicationContext();
         CheckUpdateByPatch.packageName = packageName;
         CheckUpdateByPatch.md5PostApiUrl = md5PostApiUrl;
+        this.imageView = imageView;
+        this.scrollView = scrollView;
+        this.mWaveDrawable = mWaveDrawable;
     }
 
     //设置Patch文件名称(默认为 : patchfile.patch)
@@ -110,6 +127,20 @@ public class CheckUpdateByPatch {
         requestOldMD5(packageName);
     }
 
+    //安装新的APK
+    private static void installApk() {
+        if (!TextUtils.isEmpty(path) && !TextUtils.isEmpty(newApkName)) {
+            File file = new File(path + newApkName);
+            if (file.exists() && file.isFile()) {
+                ApkUtils.installApk(context, path + newApkName, packageName);
+            } else {
+                callBack.onInstallApkError();
+            }
+        } else {
+            callBack.onInstallApkError();
+        }
+    }
+
     /**
      * 请求服务器，根据当前安装客户端的versionCode、versionName，来获取其文件的正确MD5，防止本地安装的是被篡改的版本
      *
@@ -135,18 +166,24 @@ public class CheckUpdateByPatch {
                             @Override
                             public void onSuccess(Response<String> response) {
                                 if (latestVersionFlag.equals(response.body())) {
+                                    scrollView.setVisibility(View.VISIBLE);
                                     callBack.onCheckFinish();
                                 } else if (unknownError.equals(response.body())) {
+                                    scrollView.setVisibility(View.VISIBLE);
                                     callBack.onCheckUnknownError();
+                                } else if (!response.body().contains("{")) {
+                                    //跨版本升级，直接下载最新的APK
+                                    FILEURL = response.body();
+                                    callBack.onSuccess();
                                 } else {
                                     Gson gson = new Gson();
                                     Apk apk = gson.fromJson(response.body(), Apk.class);
                                     //解析json后拿到对应版本apk的md5和最新版本apk的md5
                                     mCurentRealMD5 = apk.getOldMd5();
                                     mNewRealMD5 = apk.getNewMd5();
-                                    String patchFileUrl = apk.getPatchFile();
-                                    //下载patch文件
-                                    downloadFile(context, patchFileUrl, path, patchFileName);
+                                    FILEURL = apk.getPatchFile();
+                                    flag = true;
+                                    callBack.onSuccess();
                                 }
                             }
 
@@ -162,6 +199,40 @@ public class CheckUpdateByPatch {
         }
     }
 
+    private void downloadApk(Context context, String url, String destFileDir, String destFileName) {
+        OkGo.<File>get(url)
+                .tag(context)
+                .execute(new FileCallback(destFileDir, destFileName) {
+                    @Override
+                    public void onStart(Request<File, ? extends Request> request) {
+                        super.onStart(request);
+                        imageView.setVisibility(View.VISIBLE);
+                        scrollView.setVisibility(View.GONE);
+                    }
+
+                    @Override
+                    public void onSuccess(Response<File> response) {
+                        imageView.setVisibility(View.GONE);
+                        scrollView.setVisibility(View.VISIBLE);
+                        installApk();
+                    }
+
+                    @Override
+                    public void downloadProgress(Progress progress) {
+                        super.downloadProgress(progress);
+                        mWaveDrawable.setLevel((int) (progress.fraction * 10000));
+                    }
+
+                    @Override
+                    public void onError(Response<File> response) {
+                        super.onError(response);
+                        imageView.setVisibility(View.GONE);
+                        scrollView.setVisibility(View.VISIBLE);
+                        callBack.onDownloadError();
+                    }
+                });
+    }
+
     /**
      * 下载patch差量包
      *
@@ -170,28 +241,47 @@ public class CheckUpdateByPatch {
      * @param destFileDir  下载目标文件夹名
      * @param destFileName 下载目标文件名
      */
-    private void downloadFile(Context context, String url, String destFileDir, String destFileName) {
+    private void downloadPatch(Context context, String url, String destFileDir, String destFileName) {
         OkGo.<File>get(url)
                 .tag(context)
                 .execute(new FileCallback(destFileDir, destFileName) {
                     @Override
+                    public void onStart(Request<File, ? extends Request> request) {
+                        super.onStart(request);
+                        imageView.setVisibility(View.VISIBLE);
+                        scrollView.setVisibility(View.GONE);
+                    }
+
+                    @Override
                     public void onSuccess(Response<File> response) {
+                        imageView.setVisibility(View.GONE);
+                        scrollView.setVisibility(View.VISIBLE);
                         new PatchApkTask().execute();
+                    }
+
+                    @Override
+                    public void downloadProgress(Progress progress) {
+                        super.downloadProgress(progress);
+                        mWaveDrawable.setLevel((int) (progress.fraction * 10000));
+                    }
+
+                    @Override
+                    public void onError(Response<File> response) {
+                        super.onError(response);
+                        imageView.setVisibility(View.GONE);
+                        scrollView.setVisibility(View.VISIBLE);
+                        callBack.onDownloadError();
                     }
                 });
     }
 
-    //安装新的APK
-    public void installApk() {
-        if (!TextUtils.isEmpty(path) && !TextUtils.isEmpty(newApkName)) {
-            File file = new File(path + newApkName);
-            if (file.exists() && file.isFile()) {
-                ApkUtils.installApk(context, path + newApkName, packageName);
-            } else {
-                callBack.onInstallApkError();
-            }
+    public void downloadFile() {
+        if (flag) {
+            //下载patch
+            downloadPatch(context, FILEURL, path, patchFileName);
         } else {
-            callBack.onInstallApkError();
+            //下载APK
+            downloadApk(context, FILEURL, path, newApkName);
         }
     }
 
@@ -213,6 +303,8 @@ public class CheckUpdateByPatch {
         void onCheckUnknownError();
 
         void onNetError();
+
+        void onDownloadError();
     }
 
     private static class PatchApkTask extends AsyncTask<String, Void, Integer> {
@@ -259,7 +351,7 @@ public class CheckUpdateByPatch {
                     } catch (Exception e) {
                         e.printStackTrace();
                     }
-                    callBack.onSuccess();
+                    installApk();
                     break;
                 }
                 case OLD_MD5_UNCORRECT: {

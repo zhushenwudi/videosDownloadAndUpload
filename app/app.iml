@@ -138,6 +138,7 @@
     <orderEntry type="library" name="Gradle: com.hikvision.ezviz:ezviz-sdk:4.8.6.3@aar" level="project" />
     <orderEntry type="library" name="Gradle: io.reactivex.rxjava2:rxandroid:2.1.1@aar" level="project" />
     <orderEntry type="library" name="Gradle: com.microsoft.azure.android:azure-storage-android:2.0.0@aar" level="project" />
+    <orderEntry type="library" name="Gradle: com.race604.waveloading:library:1.1.1@aar" level="project" />
     <orderEntry type="module" module-name="checkupdatebypatch" />
   </component>
 </module>
