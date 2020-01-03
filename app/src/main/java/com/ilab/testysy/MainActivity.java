@@ -349,6 +349,7 @@ public class MainActivity extends BaseActivity {
         initTimePrompt();
         //启动双线程守护
         startService(new Intent(this, LocalService.class));
+        timerUtil();
     }
 
     @Override
