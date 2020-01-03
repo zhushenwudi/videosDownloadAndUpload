@@ -15,8 +15,6 @@ import static com.ilab.testysy.utils.Util.restartApp;
 
 public class LocalService extends Service {
 
-    private MyBinder mBinder;
-
     private ServiceConnection connection = new ServiceConnection() {
         @Override
         public void onServiceConnected(ComponentName name, IBinder service) {
@@ -57,8 +55,7 @@ public class LocalService extends Service {
 
     @Override
     public IBinder onBind(Intent intent) {
-        mBinder = new MyBinder();
-        return mBinder;
+        return new MyBinder();
     }
 
     private class MyBinder extends IMyAidlInterface.Stub {
@@ -68,5 +65,4 @@ public class LocalService extends Service {
             return LocalService.class.getName();
         }
     }
-
 }

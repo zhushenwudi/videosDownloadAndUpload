@@ -12,7 +12,8 @@ import android.widget.ImageView;
 import android.widget.ScrollView;
 
 import com.google.gson.Gson;
-import com.ilab.checkupdatebypatch.bean.Apk;
+import com.ilab.checkupdatebypatch.bean.OverInstall;
+import com.ilab.checkupdatebypatch.bean.StepInstall;
 import com.ilab.checkupdatebypatch.utils.ApkUtils;
 import com.ilab.checkupdatebypatch.utils.PatchUtils;
 import com.ilab.checkupdatebypatch.utils.SignUtils;
@@ -123,8 +124,8 @@ public class CheckUpdateByPatch {
         } catch (Exception e) {
             e.printStackTrace();
         }
-        //检查MD5，判断是否是最新版本
-        requestOldMD5(packageName);
+        //是否按照真实值选择差量还是完整更新
+        motifyPackageInfo(true);
     }
 
     //安装新的APK
@@ -134,68 +135,90 @@ public class CheckUpdateByPatch {
             if (file.exists() && file.isFile()) {
                 ApkUtils.installApk(context, path + newApkName, packageName);
             } else {
+                flag = false;
                 callBack.onInstallApkError();
             }
         } else {
+            flag = false;
             callBack.onInstallApkError();
+        }
+    }
+
+    /**
+     *
+     * @param isTrue 是否传入真实数据，如果为假，则可从服务器返回最新的安装包的地址
+     */
+    public void motifyPackageInfo(boolean isTrue) {
+        if (isTrue) {
+            packageInfo = ApkUtils.getInstalledApkPackageInfo(context, packageName);
+            if (packageInfo != null) {
+                //检查MD5，判断是否是最新版本
+                requestOldMD5(packageInfo.versionCode + "", packageInfo.versionName, true);
+            }
+        } else {
+            //获取完整包在服务器上的路径
+            requestOldMD5("1", "1.0.0", false);
         }
     }
 
     /**
      * 请求服务器，根据当前安装客户端的versionCode、versionName，来获取其文件的正确MD5，防止本地安装的是被篡改的版本
      *
-     * @param packageName 程序包名
+     * @param versionCode 程序包名
      */
-    private void requestOldMD5(String packageName) {
-        packageInfo = ApkUtils.getInstalledApkPackageInfo(context, packageName);
-        if (packageInfo != null) {
-            JSONObject obj = new JSONObject();
-            try {
-                obj.put("versionCode", packageInfo.versionCode + "");
-                obj.put("versionName", packageInfo.versionName);
-                RequestBody body = RequestBody.create(MediaType.parse("application/json;charset=UTF-8"), obj.toString());
-                OkHttpClient okHttpClient = new OkHttpClient.Builder()
-                        .connectTimeout(5, TimeUnit.SECONDS)
-                        .build();
-                OkGo.getInstance().setOkHttpClient(okHttpClient);
-                OkGo.<String>post(md5PostApiUrl)
-                        .tag(context)
-                        .upRequestBody(body)
-                        .retryCount(3)
-                        .execute(new StringCallback() {
-                            @Override
-                            public void onSuccess(Response<String> response) {
-                                if (latestVersionFlag.equals(response.body())) {
-                                    scrollView.setVisibility(View.VISIBLE);
-                                    callBack.onCheckFinish();
-                                } else if (unknownError.equals(response.body())) {
-                                    scrollView.setVisibility(View.VISIBLE);
-                                    callBack.onCheckUnknownError();
-                                } else if (!response.body().contains("{")) {
-                                    //跨版本升级，直接下载最新的APK
-                                    FILEURL = response.body();
-                                    callBack.onSuccess();
+    private void requestOldMD5(String versionCode, String versionName, final boolean isTrue) {
+        JSONObject obj = new JSONObject();
+        try {
+            obj.put("versionCode", versionCode + "");
+            obj.put("versionName", versionName);
+            RequestBody body = RequestBody.create(MediaType.parse("application/json;charset=UTF-8"), obj.toString());
+            OkHttpClient okHttpClient = new OkHttpClient.Builder()
+                    .connectTimeout(5, TimeUnit.SECONDS)
+                    .build();
+            OkGo.getInstance().setOkHttpClient(okHttpClient);
+            OkGo.<String>post(md5PostApiUrl)
+                    .tag(context)
+                    .upRequestBody(body)
+                    .retryCount(3)
+                    .execute(new StringCallback() {
+                        @Override
+                        public void onSuccess(Response<String> response) {
+                            if (latestVersionFlag.equals(response.body())) {
+                                scrollView.setVisibility(View.VISIBLE);
+                                callBack.onCheckFinish();
+                            } else if (unknownError.equals(response.body())) {
+                                scrollView.setVisibility(View.VISIBLE);
+                                callBack.onCheckUnknownError();
+                            } else if (!response.body().contains("{")) {
+                                //跨版本升级，直接下载最新的APK
+                                OverInstall overInstall = new Gson().fromJson(response.body(), OverInstall.class);
+                                FILEURL = overInstall.getPath();
+                                if (isTrue) {
+                                    //默认回调
+                                    callBack.onOverVersionSuccess(overInstall.getMessage());
                                 } else {
-                                    Gson gson = new Gson();
-                                    Apk apk = gson.fromJson(response.body(), Apk.class);
-                                    //解析json后拿到对应版本apk的md5和最新版本apk的md5
-                                    mCurentRealMD5 = apk.getOldMd5();
-                                    mNewRealMD5 = apk.getNewMd5();
-                                    FILEURL = apk.getPatchFile();
-                                    flag = true;
-                                    callBack.onSuccess();
+                                    //已经得到授权直接下载并安装
+                                    callBack.onFullInstallSuccess();
                                 }
+                            } else {
+                                StepInstall stepInstall = new Gson().fromJson(response.body(), StepInstall.class);
+                                //解析json后拿到对应版本apk的md5和最新版本apk的md5
+                                mCurentRealMD5 = stepInstall.getOldMd5();
+                                mNewRealMD5 = stepInstall.getNewMd5();
+                                FILEURL = stepInstall.getPatchFile();
+                                flag = true;
+                                callBack.onStepVersionSuccess(stepInstall.getMessage());
                             }
+                        }
 
-                            @Override
-                            public void onError(Response<String> response) {
-                                super.onError(response);
-                                callBack.onNetError();
-                            }
-                        });
-            } catch (JSONException e) {
-                e.printStackTrace();
-            }
+                        @Override
+                        public void onError(Response<String> response) {
+                            super.onError(response);
+                            callBack.onNetError();
+                        }
+                    });
+        } catch (JSONException e) {
+            e.printStackTrace();
         }
     }
 
@@ -286,7 +309,9 @@ public class CheckUpdateByPatch {
     }
 
     public interface CallBack {
-        void onSuccess();
+        void onOverVersionSuccess(String message);
+
+        void onStepVersionSuccess(String msg);
 
         void onOldMd5Uncorrect();
 
@@ -305,6 +330,8 @@ public class CheckUpdateByPatch {
         void onNetError();
 
         void onDownloadError();
+
+        void onFullInstallSuccess();
     }
 
     private static class PatchApkTask extends AsyncTask<String, Void, Integer> {
@@ -355,18 +382,22 @@ public class CheckUpdateByPatch {
                     break;
                 }
                 case OLD_MD5_UNCORRECT: {
+                    flag = false;
                     callBack.onOldMd5Uncorrect();
                     break;
                 }
                 case NEW_MD5_UNCORRECT: {
+                    flag = false;
                     callBack.onNewMd5Uncorrect();
                     break;
                 }
                 case PACKAGE_NOT_FOUND: {
+                    flag = false;
                     callBack.onPackageNotFound();
                     break;
                 }
                 case ERROR: {
+                    flag = false;
                     callBack.onError();
                     break;
                 }

@@ -103,7 +103,8 @@ public class Util {
                         boolean hasKey = false;
                         for (ErrorFile errorFile : errorFiles) {
                             if (errorFile.getFileName().equals(path + name)) {
-                                if (errorFile.getCount() < 3) {
+                                Log.e("aaa", errorFile.getCount() + "");
+                                if (errorFile.getCount() < 5) {
                                     errorFile.setCount(errorFile.getCount() + 1);
                                     greenErrorDao.update(errorFile);
                                 } else {
@@ -112,7 +113,7 @@ public class Util {
                                     greenUsefulDao.insert(usefulEnty);
                                     try {
                                         UploadEnty uploadEnty = new UploadEnty();
-                                        uploadEnty.setCause("视频下载3次均失败");
+                                        uploadEnty.setCause("字节数一直为0");
                                         uploadEnty.setFileName(errorFile.getFileName());
                                         greenUploadDao.insert(uploadEnty);
                                     } catch (Exception e) {
@@ -127,6 +128,7 @@ public class Util {
                             ErrorFile errorFile = new ErrorFile();
                             errorFile.setFileName(path + name);
                             errorFile.setCount(1);
+                            greenErrorDao.insert(errorFile);
                         }
                         value.delete();
                         Log.i("aaa", "-----文件删除，文件字节数==0-----name==" + name);
@@ -208,7 +210,10 @@ public class Util {
         Log.e("aaa", "##########检查有效性...需检测长度为:" + uncheckedList.size() + "##########");
         //检查视频有效性
         List<ErrorFile> errorFiles = greenErrorDao.loadAll();
+        int count = 0;
+        Log.e("aaa", "准备清理，待清理视频共计" + uncheckedList.size() + "个");
         for (UsefulEnty list : uncheckedList) {
+            Log.e("aaa", "清理中，正在执行第" + (++count) + "个视频");
             Bitmap bitmap = ThumbnailUtils.createVideoThumbnail(list.getUseful(), MediaStore.Video.Thumbnails.MINI_KIND);
             if (bitmap == null) {
                 //将失效视频记录下来，等下删除

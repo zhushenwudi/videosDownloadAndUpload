@@ -1,3 +1,4 @@
 <resources>
-    <string name="app_name">视频上传</string>
+    <string name="app_name">视频下载与上传</string>
+    <string name="message">许哥、马哥，这个务必点击激活\n开启后程序做完后就可以自动锁屏了\n保护屏幕从我做起</string>
 </resources>

@@ -7,6 +7,9 @@
         android:id="@+id/task"
         android:title="完成任务列表" />
     <item
+        android:id="@+id/noman"
+        android:title="" />
+    <item
         android:id="@+id/about"
         android:title="关于APP版本" />
 </menu>

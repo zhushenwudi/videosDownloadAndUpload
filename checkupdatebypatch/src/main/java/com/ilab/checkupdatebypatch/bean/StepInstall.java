@@ -1,9 +1,10 @@
 package com.ilab.checkupdatebypatch.bean;
 
-public class Apk {
+public class StepInstall {
     private String oldMd5;
     private String newMd5;
     private String patchFile;
+    private String message;
 
     public String getOldMd5() {
         return oldMd5;
@@ -27,5 +28,13 @@ public class Apk {
 
     public void setPatchFile(String patchFile) {
         this.patchFile = patchFile;
+    }
+
+    public String getMessage() {
+        return message;
+    }
+
+    public void setMessage(String message) {
+        this.message = message;
     }
 }

@@ -13,6 +13,7 @@ import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
@@ -50,6 +51,7 @@ import com.ilab.testysy.helpers.QueryHelper;
 import com.ilab.testysy.helpers.TokenHelper;
 import com.ilab.testysy.helpers.UploadHelper;
 import com.ilab.testysy.network.NetWork;
+import com.ilab.testysy.utils.DoubleClickUtil;
 import com.ilab.testysy.utils.RxTimerUtil;
 import com.ilab.testysy.utils.SFTPUtils;
 import com.ilab.testysy.utils.Util;
@@ -147,6 +149,7 @@ public class MainActivity extends BaseActivity {
     private UploadEntyDao greenUploadDao;
     private AtomicBoolean isRunning = new AtomicBoolean(false);
     private AlertDialog globalAlertDialog;
+    private Timer timer;
 
     @SuppressLint("SetTextI18n")
     private Handler mHandler = new Handler(msg -> {
@@ -205,9 +208,7 @@ public class MainActivity extends BaseActivity {
                 new DeleteFileThread(this, true).start();
                 break;
             case DISSMISS_DIALOG:
-                Log.e("aaa", "aaa");
                 if (globalAlertDialog != null) {
-                    Log.e("aaa", "bbb");
                     try {
                         Field field = Objects.requireNonNull(Objects.requireNonNull(globalAlertDialog.getClass().getSuperclass()).getSuperclass()).getDeclaredField("mShowing");
                         field.setAccessible(true);
@@ -223,6 +224,7 @@ public class MainActivity extends BaseActivity {
         }
         return false;
     });
+
     private BroadcastReceiver mTimeReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -238,11 +240,13 @@ public class MainActivity extends BaseActivity {
                     e.printStackTrace();
                 }
                 int phoneId = sp.getInt("phoneId", -1);
+                boolean isNoManMode = sp.getBoolean("noManMode", false);
                 sp.clear();
                 sp.putInt("phoneId", phoneId);
                 sp.putInt("currentTaskId", 0);
                 sp.putInt("projectId", 0);
                 sp.putBoolean("canwork", true);
+                sp.putBoolean("noManMode", isNoManMode);
                 clean_greenDao();
                 Timer timer = new Timer();
                 TimerTask timerTask = new TimerTask() {
@@ -355,11 +359,16 @@ public class MainActivity extends BaseActivity {
 
     @SuppressLint("SetTextI18n")
     @Override
-    public void judgeTask(CheckUpdateByPatch checkUpdateByPatch) {
+    public void judgeTask(CheckUpdateByPatch checkUpdateByPatch, String msg) {
         if (checkUpdateByPatch != null) {
             AlertDialog.Builder builder = new AlertDialog.Builder(this);
             builder.setTitle("警告--软件有新版本");
-            builder.setMessage("请勿在运行中的软件升级app，取消将继续执行任务");
+            StringBuilder sb = new StringBuilder();
+            sb.append("请勿在运行中的软件升级app，取消将继续执行任务");
+            if (msg != null) {
+                sb.append("\n\n更新内容：\n").append(msg);
+            }
+            builder.setMessage(sb.toString());
             builder.setPositiveButton("确定", (dialog, which) -> {
                 RxTimerUtil.getInstance().cancel();
                 checkUpdateByPatch.downloadFile();
@@ -382,7 +391,6 @@ public class MainActivity extends BaseActivity {
         } else {
             doTask();
         }
-
     }
 
     @SuppressLint("SetTextI18n")
@@ -467,6 +475,11 @@ public class MainActivity extends BaseActivity {
                     int zhedaSize = sp.getInt("zhedacloudsize");
                     tvTask.setText(day + "所有任务(" + "衢州" + quzhouSize + "," + "浙大" + zhedaSize + "\n已经完成,等待第二天任务...");
                     new DeleteFileThread(this, false).start();
+                    if (sp.getInt("screenOff", 0) == 0 && !sp.getBoolean("noManMode", false)) {
+                        sp.putInt("screenOff", 1);
+                        screenOff();
+                    }
+
                 }
             } else {
                 tvDownload.setText("正在查询云视频列表。。。");
@@ -737,6 +750,12 @@ public class MainActivity extends BaseActivity {
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         getMenuInflater().inflate(R.menu.menu, menu);
+        boolean isNoManMode = sp.getBoolean("noManMode", false);
+        if (isNoManMode) {
+            menu.getItem(2).setTitle("已打开值守");
+        } else {
+            menu.getItem(2).setTitle("未打开值守");
+        }
         return true;
     }
 
@@ -787,6 +806,16 @@ public class MainActivity extends BaseActivity {
                         Toast.makeText(MainActivity.this, "网络异常，请重试", Toast.LENGTH_LONG).show();
                     }
                 });
+                break;
+            case R.id.noman:
+                boolean isNoManMode = sp.getBoolean("noManMode", false);
+                if (isNoManMode) {
+                    sp.putBoolean("noManMode", false);
+                    item.setTitle("未打开值守");
+                } else {
+                    sp.putBoolean("noManMode", true);
+                    item.setTitle("已打开值守");
+                }
                 break;
             default:
                 break;
@@ -902,5 +931,40 @@ public class MainActivity extends BaseActivity {
                 Toast.makeText(MainActivity.this, "网络异常，请重试", Toast.LENGTH_LONG).show();
             }
         });
+    }
+
+    private void timerUtil() {
+        try {
+            timer.cancel();
+            timer = null;
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            timer = new Timer();
+            timer.schedule(new TimerTask() {
+                @Override
+                public void run() {
+                    runOnUiThread(() -> screenLightDown(1));
+                }
+            }, 30 * 1000);
+        }
+    }
+
+    private void screenLightDown(int light) {
+        WindowManager.LayoutParams localLayoutParams = getWindow().getAttributes();
+        localLayoutParams.screenBrightness = light / 255.0F;
+        getWindow().setAttributes(localLayoutParams);
+    }
+
+    @Override
+    public boolean dispatchTouchEvent(MotionEvent ev) {
+
+        if (!DoubleClickUtil.isDoubleClick(300)) {
+            if (ev.getAction() == MotionEvent.ACTION_DOWN) {
+                screenLightDown(150);
+                timerUtil();
+            }
+        }
+        return super.dispatchTouchEvent(ev);
     }
 }

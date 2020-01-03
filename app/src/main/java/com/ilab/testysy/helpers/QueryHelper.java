@@ -150,12 +150,12 @@ public class QueryHelper {
                 int a = (int) Math.floor(devices.size() / 10);
 
                 if (phoneId == 0) {
-                    for (int i = 0; i < 4 * a; i++) {
+                    for (int i = 0; i < 5 * a; i++) {
                         list.add(devices.get(i));
                     }
                     arr = list;
                 } else if (phoneId == 1) {
-                    for (int i = (4 * a); i < (7 * a); i++) {
+                    for (int i = (5 * a); i < (7 * a); i++) {
                         list.add(devices.get(i));
                     }
                     arr = list;
